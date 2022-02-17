@@ -1,0 +1,22 @@
+{
+  "name": "org.pcsoft.project-ex",
+  "version": "1.0.0",
+  "displayName": "Project Extension for Unity",
+  "description": "Extension for Unity for better project handling.",
+  "unity": "2021.1",
+  "keywords": [
+    "project",
+    "extension",
+    "tooling",
+    "media"
+  ],
+  "dependencies": {
+    "org.pcsoft.editor-ex": "1.1.7",
+    "org.pcsoft.common-ex": "1.1.4"
+  },
+  "author": {
+    "name": "Pfeiffer C Soft",
+    "email": "kl3in3rhack3r@gmail.com",
+    "url": "https://github.com/KleinerHacker/unity-project-ex"
+  }
+}
