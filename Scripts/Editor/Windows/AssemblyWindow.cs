@@ -4,19 +4,19 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using Unity.Plastic.Newtonsoft.Json;
 using UnityCommonEx.Runtime.common_ex.Scripts.Runtime.Utils.Extensions;
 using UnityEditor;
 using UnityEditorEx.Editor.editor_ex.Scripts.Editor.Utils;
 using UnityEditorInternal;
 using UnityEngine;
+using UnityProjectEx.Editor.project_ex.Scripts.Editor.Utils.Extensions;
 
 namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 {
     public sealed class AssemblyWindow : EditorWindow
     {
         private const int NameLimit = 20;
-        
+
         [MenuItem("Window/General/Assembly", priority = 9)]
         public static void Show()
         {
@@ -44,10 +44,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             titleContent = new GUIContent("Assembly", EditorGUIUtility.IconContent("Assembly Icon").image);
             minSize = new Vector2(350f, 100f);
             maxSize = new Vector2(400f, 1000f);
-            
+
             _assemblyIcon = EditorGUIUtility.IconContent("AssemblyDefinitionAsset Icon").image;
             _assemblyReferenceIcon = EditorGUIUtility.IconContent("AssemblyDefinitionReferenceAsset Icon").image;
-            
+
             OnValidate();
         }
 
@@ -63,7 +63,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 .Select(AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>)
                 .Select(x => new AssemblyData(x))
                 .ToArray();
-            
+
             hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
         }
 
@@ -77,7 +77,8 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 {
                     EditorGUILayout.LabelField("Project:", GUILayout.Width(85f));
                     _assemblyProjectFilter = (AssemblyType)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyProjectFilter, GUILayout.Width(100f));
-                    _assemblyProjectNameFilter = EditorGUILayout.TextField(GUIContent.none, _assemblyProjectNameFilter, GUILayout.ExpandWidth(true), GUILayout.MinWidth(100f));
+                    _assemblyProjectNameFilter = EditorGUILayout.TextField(GUIContent.none, _assemblyProjectNameFilter, GUILayout.ExpandWidth(true),
+                        GUILayout.MinWidth(100f));
                 }
                 EditorGUILayout.EndHorizontal();
 
@@ -86,31 +87,36 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                     EditorGUILayout.LabelField("References:", GUILayout.Width(85f));
                     EditorGUILayout.BeginVertical(GUILayout.Width(100f));
                     _assemblyReferenceFilter = (AssemblyType)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyReferenceFilter, GUILayout.Width(100f));
-                    _assemblyReferencePlaceFilter = (AssemblyPlace)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyReferencePlaceFilter, GUILayout.Width(100f));
+                    _assemblyReferencePlaceFilter =
+                        (AssemblyPlace)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyReferencePlaceFilter, GUILayout.Width(100f));
                     EditorGUILayout.EndVertical();
-                    _assembyReferenceNameFilter = EditorGUILayout.TextField(GUIContent.none, _assembyReferenceNameFilter, GUILayout.ExpandWidth(true), GUILayout.MinWidth(100f));
+                    _assembyReferenceNameFilter = EditorGUILayout.TextField(GUIContent.none, _assembyReferenceNameFilter, GUILayout.ExpandWidth(true),
+                        GUILayout.MinWidth(100f));
                 }
                 EditorGUILayout.EndHorizontal();
                 EditorGUI.indentLevel = 0;
             }
+
             EditorGUILayout.EndFoldoutHeaderGroup();
-            
+
             _useGuid = EditorGUILayout.Toggle("Use GUID for referencing", _useGuid);
 
             EditorGUILayout.Space();
             _scroll = EditorGUILayout.BeginScrollView(_scroll, GUIStyle.none, GUI.skin.verticalScrollbar);
             foreach (var projectAssembly in _projectAssemblies
                          .Where(x => _assemblyProjectFilter.HasFlag(x.Type))
-                         .Where(x => string.IsNullOrWhiteSpace(_assemblyProjectNameFilter) || x.Name.Contains(_assemblyProjectNameFilter, StringComparison.OrdinalIgnoreCase)))
+                         .Where(x => string.IsNullOrWhiteSpace(_assemblyProjectNameFilter) ||
+                                     x.Name.Contains(_assemblyProjectNameFilter, StringComparison.OrdinalIgnoreCase)))
             {
                 var fold = _folds.GetOrDefault(projectAssembly.Name, false);
-                fold = EditorGUILayout.BeginFoldoutHeaderGroup(fold, new GUIContent(projectAssembly.Name.Limit(NameLimit, "...") + " (" + projectAssembly.Type + ")", _assemblyIcon, projectAssembly.Name),
+                fold = EditorGUILayout.BeginFoldoutHeaderGroup(fold,
+                    new GUIContent(projectAssembly.Name.Limit(NameLimit, "...") + " (" + projectAssembly.Type + ")", _assemblyIcon, projectAssembly.Name),
                     menuAction: _ =>
                     {
                         var genericMenu = new GenericMenu();
                         genericMenu.AddItem(new GUIContent("Select in tree"), false, () => Selection.activeObject = projectAssembly.AssemblyDefinition);
                         genericMenu.ShowAsContext();
-                    }); 
+                    });
                 _folds.AddOrOverwrite(projectAssembly.Name, fold);
 
                 if (fold)
@@ -119,7 +125,8 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                     foreach (var allAssembly in _allAssemblies
                                  .Where(x => _assemblyReferenceFilter.HasFlag(x.Type))
                                  .Where(x => _assemblyReferencePlaceFilter.HasFlag(x.Place))
-                                 .Where(x => string.IsNullOrWhiteSpace(_assembyReferenceNameFilter) || x.Name.Contains(_assembyReferenceNameFilter, StringComparison.OrdinalIgnoreCase)))
+                                 .Where(x => string.IsNullOrWhiteSpace(_assembyReferenceNameFilter) ||
+                                             x.Name.Contains(_assembyReferenceNameFilter, StringComparison.OrdinalIgnoreCase)))
                     {
                         EditorGUILayout.BeginHorizontal();
                         var selected = projectAssembly.References.Any(x =>
@@ -129,7 +136,9 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 
                             return x == allAssembly.Name;
                         });
-                        var newSelected = EditorGUILayout.ToggleLeft(new GUIContent(allAssembly.Name.Limit(NameLimit, "..."), _assemblyReferenceIcon, allAssembly.Name), selected, GUILayout.Width(175f));
+                        var newSelected =
+                            EditorGUILayout.ToggleLeft(new GUIContent(allAssembly.Name.Limit(NameLimit, "..."), _assemblyReferenceIcon, allAssembly.Name),
+                                selected, GUILayout.Width(175f));
                         if (selected != newSelected)
                         {
                             var guidElement = "GUID:" + AssetDatabaseEx.GetGUID(allAssembly.AssemblyDefinition);
@@ -137,7 +146,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                             {
                                 projectAssembly.References = projectAssembly.References
                                     .Append(_useGuid ? guidElement : allAssembly.Name)
-                                    .ToArray(); 
+                                    .ToArray();
                             }
                             else
                             {
@@ -146,9 +155,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                                     .Remove(guidElement)
                                     .ToArray();
                             }
-                            
+
                             hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
                         }
+
                         EditorGUILayout.LabelField("(" + allAssembly.Type + " | " + allAssembly.Place + ")", EditorStyles.miniLabel, GUILayout.Width(125f));
                         EditorGUILayout.Space(0f, true);
                         if (GUILayout.Button(EditorGUIUtility.IconContent("_Menu").image, EditorStyles.iconButton))
@@ -157,6 +167,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                             genericMenu.AddItem(new GUIContent("Select in tree"), false, () => Selection.activeObject = allAssembly.AssemblyDefinition);
                             genericMenu.ShowAsContext();
                         }
+
                         EditorGUILayout.EndHorizontal();
                     }
 
@@ -176,6 +187,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 {
                     projectAssembly.Store();
                 }
+
                 hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
                 AssetDatabase.Refresh();
             }
@@ -186,8 +198,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 {
                     projectAssembly.Revert();
                 }
+
                 hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
             }
+
             EditorGUILayout.EndHorizontal();
             EditorGUI.EndDisabledGroup();
         }
@@ -197,7 +211,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
     {
         private static readonly Regex NameRegex = new Regex(@"""name""\:\s*""([^""]*)""");
         private static readonly Regex ReferencesRegex = new Regex(@"""references""\:\s*\[([^\]]*)\]");
-        
+        private static readonly Regex IncludesRegex = new Regex(@"""includePlatforms""\:\s*\[([^\]]*)\]");
+        private static readonly Regex ExcludesRegex = new Regex(@"""excludePlatforms""\:\s*\[([^\]]*)\]");
+        private static readonly Regex DefinesRegex = new Regex(@"""defineConstraints""\:\s*\[([^\]]*)\]");
+
         private string name;
         private string[] references = Array.Empty<string>();
 
@@ -237,35 +254,33 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         private void ReloadAssembly()
         {
             references = Array.Empty<string>();
-            
-            using var reader = new JsonTextReader(new StringReader(Encoding.UTF8.GetString(AssemblyDefinition.bytes)));
 
-            var includes = Array.Empty<string>();
-            var excludes = Array.Empty<string>();
-            var defineConstraints = Array.Empty<string>();
-            while (reader.Read())
-            {
-                if (reader.Path.Equals("name", StringComparison.OrdinalIgnoreCase))
-                {
-                    name = (string)reader.Value;
-                }
-                else if (reader.Path.StartsWith("includePlatforms[", StringComparison.OrdinalIgnoreCase))
-                {
-                    includes = includes.Append((string)reader.Value).ToArray();
-                }
-                else if (reader.Path.StartsWith("excludePlatforms[", StringComparison.OrdinalIgnoreCase))
-                {
-                    includes = includes.Append((string)reader.Value).ToArray();
-                }
-                else if (reader.Path.StartsWith("references[", StringComparison.OrdinalIgnoreCase))
-                {
-                    references = references.Append((string)reader.Value).ToArray();
-                }
-                else if (reader.Path.StartsWith("defineConstraints[", StringComparison.OrdinalIgnoreCase))
-                {
-                    defineConstraints = defineConstraints.Append((string)reader.Value).ToArray();
-                }
-            }
+            var json = Encoding.UTF8.GetString(AssemblyDefinition.bytes);
+
+            var nameMatch = NameRegex.Match(json);
+            if (!nameMatch.Success)
+                throw new InvalidOperationException("Match for assembly name has failed");
+            name = nameMatch.Groups[1].Value;
+
+            var referencesMatch = ReferencesRegex.Match(json);
+            references = referencesMatch.Success
+                ? referencesMatch.Groups[1].Value.SplitJson()
+                : Array.Empty<string>();
+
+            var includesMatch = IncludesRegex.Match(json);
+            var includes = includesMatch.Success
+                ? includesMatch.Groups[1].Value.SplitJson()
+                : Array.Empty<string>();
+
+            var excludesMatch = ExcludesRegex.Match(json);
+            var excludes = excludesMatch.Success
+                ? excludesMatch.Groups[1].Value.SplitJson()
+                : Array.Empty<string>();
+
+            var definesMatch = DefinesRegex.Match(json);
+            var defineConstraints = definesMatch.Success
+                ? definesMatch.Groups[1].Value.SplitJson()
+                : Array.Empty<string>();
 
             if (defineConstraints.Contains("UNITY_INCLUDE_TESTS"))
             {
@@ -289,9 +304,9 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         {
             if (!IsDirty)
                 return;
-            
+
             var json = Encoding.UTF8.GetString(AssemblyDefinition.bytes);
-            
+
             var match = NameRegex.Match(json);
             if (!match.Success)
                 throw new InvalidOperationException("Match for assembly name has failed");
@@ -302,10 +317,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             json = !match.Success ? json.Insert(json.Length - 1, "\"references\": [" + rawReferences + "]") :
                 string.IsNullOrEmpty(match.Groups[1].Value) ? json.Insert(match.Groups[1].Index, rawReferences) :
                 json.Replace(match.Groups[1].Value, rawReferences);
-            
+
             File.WriteAllText(AssetDatabase.GetAssetPath(AssemblyDefinition), json);
             EditorUtility.SetDirty(AssemblyDefinition);
-            
+
             IsDirty = false;
         }
 
@@ -313,7 +328,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         {
             if (!IsDirty)
                 return;
-            
+
             ReloadAssembly();
             IsDirty = false;
         }

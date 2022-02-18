@@ -23,7 +23,8 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
                 return;
             }
             
-            GUI.Label(rect, new GUIContent(asset.Name, asset.Icon));
+            GUI.DrawTexture(new Rect(rect.x, rect.y, 24f, 24f), asset.Icon);
+            GUI.Label(new Rect(rect.x + 30f, rect.y, rect.width - 30f, rect.height), asset.Name);
         }
 
         private void OnSelectCallback(ReorderableList reorderableList)

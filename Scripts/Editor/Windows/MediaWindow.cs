@@ -19,7 +19,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         private MediaData[] _assets = Array.Empty<MediaData>();
         private MediaList _mediaList;
 
-        private MediaTypeFilter[] _mediaTypeFilters = Array.Empty<MediaTypeFilter>();
+        private MediaFilter[] _mediaTypeFilters = Array.Empty<MediaFilter>();
 
         private Vector2 _scroll = Vector2.zero;
         private int _mediaTypeFilterIndex;
@@ -116,7 +116,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 
         private void RefreshMediaTypeFilters()
         {
-            _mediaTypeFilters = MediaTypeFilter.BuiltinFilters;
+            _mediaTypeFilters = MediaFilter.BuiltinFilters;
         }
 
         private static class CustomStyles
