@@ -15,7 +15,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 {
     public sealed class AssemblyWindow : EditorWindow
     {
-        private const int NameLimit = 25;
+        private const int NameLimit = 20;
         
         [MenuItem("Window/General/Assembly", priority = 9)]
         public static void Show()
@@ -35,14 +35,20 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         private AssemblyType _assemblyProjectFilter = AssemblyType.Runtime | AssemblyType.Editor | AssemblyType.Test;
         private string _assemblyProjectNameFilter = "";
         private AssemblyType _assemblyReferenceFilter = AssemblyType.Runtime | AssemblyType.Editor | AssemblyType.Test;
+        private AssemblyPlace _assemblyReferencePlaceFilter = AssemblyPlace.Package | AssemblyPlace.Project;
         private string _assembyReferenceNameFilter = "";
         private bool _useGuid = true;
 
         private void OnEnable()
         {
             titleContent = new GUIContent("Assembly", EditorGUIUtility.IconContent("Assembly Icon").image);
+            minSize = new Vector2(350f, 100f);
+            maxSize = new Vector2(400f, 1000f);
+            
             _assemblyIcon = EditorGUIUtility.IconContent("AssemblyDefinitionAsset Icon").image;
             _assemblyReferenceIcon = EditorGUIUtility.IconContent("AssemblyDefinitionReferenceAsset Icon").image;
+            
+            OnValidate();
         }
 
         private void OnValidate()
@@ -57,6 +63,8 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 .Select(AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>)
                 .Select(x => new AssemblyData(x))
                 .ToArray();
+            
+            hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
         }
 
         private void OnGUI()
@@ -76,7 +84,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 EditorGUILayout.BeginHorizontal();
                 {
                     EditorGUILayout.LabelField("References:", GUILayout.Width(85f));
+                    EditorGUILayout.BeginVertical(GUILayout.Width(100f));
                     _assemblyReferenceFilter = (AssemblyType)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyReferenceFilter, GUILayout.Width(100f));
+                    _assemblyReferencePlaceFilter = (AssemblyPlace)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyReferencePlaceFilter, GUILayout.Width(100f));
+                    EditorGUILayout.EndVertical();
                     _assembyReferenceNameFilter = EditorGUILayout.TextField(GUIContent.none, _assembyReferenceNameFilter, GUILayout.ExpandWidth(true), GUILayout.MinWidth(100f));
                 }
                 EditorGUILayout.EndHorizontal();
@@ -86,13 +97,20 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             
             _useGuid = EditorGUILayout.Toggle("Use GUID for referencing", _useGuid);
 
-            _scroll = EditorGUILayout.BeginScrollView(_scroll);
+            EditorGUILayout.Space();
+            _scroll = EditorGUILayout.BeginScrollView(_scroll, GUIStyle.none, GUI.skin.verticalScrollbar);
             foreach (var projectAssembly in _projectAssemblies
                          .Where(x => _assemblyProjectFilter.HasFlag(x.Type))
                          .Where(x => string.IsNullOrWhiteSpace(_assemblyProjectNameFilter) || x.Name.Contains(_assemblyProjectNameFilter, StringComparison.OrdinalIgnoreCase)))
             {
                 var fold = _folds.GetOrDefault(projectAssembly.Name, false);
-                fold = EditorGUILayout.BeginFoldoutHeaderGroup(fold, new GUIContent(projectAssembly.Name.Limit(NameLimit, "...") + " (" + projectAssembly.Type + ")", _assemblyIcon, projectAssembly.Name));
+                fold = EditorGUILayout.BeginFoldoutHeaderGroup(fold, new GUIContent(projectAssembly.Name.Limit(NameLimit, "...") + " (" + projectAssembly.Type + ")", _assemblyIcon, projectAssembly.Name),
+                    menuAction: _ =>
+                    {
+                        var genericMenu = new GenericMenu();
+                        genericMenu.AddItem(new GUIContent("Select in tree"), false, () => Selection.activeObject = projectAssembly.AssemblyDefinition);
+                        genericMenu.ShowAsContext();
+                    }); 
                 _folds.AddOrOverwrite(projectAssembly.Name, fold);
 
                 if (fold)
@@ -100,6 +118,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                     EditorGUI.indentLevel = 1;
                     foreach (var allAssembly in _allAssemblies
                                  .Where(x => _assemblyReferenceFilter.HasFlag(x.Type))
+                                 .Where(x => _assemblyReferencePlaceFilter.HasFlag(x.Place))
                                  .Where(x => string.IsNullOrWhiteSpace(_assembyReferenceNameFilter) || x.Name.Contains(_assembyReferenceNameFilter, StringComparison.OrdinalIgnoreCase)))
                     {
                         EditorGUILayout.BeginHorizontal();
@@ -110,7 +129,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 
                             return x == allAssembly.Name;
                         });
-                        var newSelected = EditorGUILayout.ToggleLeft(new GUIContent(allAssembly.Name.Limit(NameLimit, "..."), _assemblyReferenceIcon, allAssembly.Name), selected);
+                        var newSelected = EditorGUILayout.ToggleLeft(new GUIContent(allAssembly.Name.Limit(NameLimit, "..."), _assemblyReferenceIcon, allAssembly.Name), selected, GUILayout.Width(175f));
                         if (selected != newSelected)
                         {
                             var guidElement = "GUID:" + AssetDatabaseEx.GetGUID(allAssembly.AssemblyDefinition);
@@ -127,8 +146,17 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                                     .Remove(guidElement)
                                     .ToArray();
                             }
+                            
+                            hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
                         }
-                        EditorGUILayout.LabelField("(" + allAssembly.Type + ")", EditorStyles.miniLabel);
+                        EditorGUILayout.LabelField("(" + allAssembly.Type + " | " + allAssembly.Place + ")", EditorStyles.miniLabel, GUILayout.Width(125f));
+                        EditorGUILayout.Space(0f, true);
+                        if (GUILayout.Button(EditorGUIUtility.IconContent("_Menu").image, EditorStyles.iconButton))
+                        {
+                            var genericMenu = new GenericMenu();
+                            genericMenu.AddItem(new GUIContent("Select in tree"), false, () => Selection.activeObject = allAssembly.AssemblyDefinition);
+                            genericMenu.ShowAsContext();
+                        }
                         EditorGUILayout.EndHorizontal();
                     }
 
@@ -141,14 +169,26 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             EditorGUILayout.Space();
             EditorGUILayout.EndScrollView();
             EditorGUI.BeginDisabledGroup(_projectAssemblies.All(x => !x.IsDirty));
+            EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Apply Changes"))
             {
                 foreach (var projectAssembly in _projectAssemblies)
                 {
                     projectAssembly.Store();
                 }
+                hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
                 AssetDatabase.Refresh();
             }
+
+            if (GUILayout.Button("Revert Changes"))
+            {
+                foreach (var projectAssembly in _projectAssemblies)
+                {
+                    projectAssembly.Revert();
+                }
+                hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
+            }
+            EditorGUILayout.EndHorizontal();
             EditorGUI.EndDisabledGroup();
         }
     }
@@ -173,7 +213,8 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             }
         }
 
-        public AssemblyType Type { get; }
+        public AssemblyType Type { get; private set; }
+        public AssemblyPlace Place { get; private set; }
 
         public string[] References
         {
@@ -190,8 +231,14 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         public AssemblyData(AssemblyDefinitionAsset assemblyDefinition)
         {
             AssemblyDefinition = assemblyDefinition;
+            ReloadAssembly();
+        }
 
-            using var reader = new JsonTextReader(new StringReader(Encoding.UTF8.GetString(assemblyDefinition.bytes)));
+        private void ReloadAssembly()
+        {
+            References = Array.Empty<string>();
+            
+            using var reader = new JsonTextReader(new StringReader(Encoding.UTF8.GetString(AssemblyDefinition.bytes)));
 
             var includes = Array.Empty<string>();
             var excludes = Array.Empty<string>();
@@ -232,6 +279,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             {
                 Type = AssemblyType.Runtime;
             }
+
+            Place = AssetDatabase.GetAssetPath(AssemblyDefinition).StartsWith("Assets", StringComparison.OrdinalIgnoreCase)
+                ? AssemblyPlace.Project
+                : AssemblyPlace.Package;
         }
 
         public void Store()
@@ -257,6 +308,15 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             
             IsDirty = false;
         }
+
+        public void Revert()
+        {
+            if (!IsDirty)
+                return;
+            
+            ReloadAssembly();
+            IsDirty = false;
+        }
     }
 
     [Flags]
@@ -266,5 +326,13 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         Runtime = 0x01,
         Editor = 0x02,
         Test = 0x04
+    }
+
+    [Flags]
+    public enum AssemblyPlace
+    {
+        None = 0x00,
+        Project = 0x01,
+        Package = 0x02
     }
 }
