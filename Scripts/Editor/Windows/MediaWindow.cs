@@ -19,11 +19,14 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         private MediaData[] _assets = Array.Empty<MediaData>();
         private MediaList _mediaList;
 
-        private MediaFilter[] _mediaTypeFilters = Array.Empty<MediaFilter>();
+        private MediaFilter[] _mediaFilters = Array.Empty<MediaFilter>();
+        private MediaScope[] _mediaScopes = Array.Empty<MediaScope>();
 
         private Vector2 _scroll = Vector2.zero;
-        private int _mediaTypeFilterIndex;
-        private int _mediaTypeSubFilterIndex;
+        private int _mediaScopeIndex;
+        private int _mediaFilterIndex;
+        private int _mediaSubFilterIndex;
+        private string _mediaSearchFilter = "";
 
         private void OnEnable()
         {
@@ -34,6 +37,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 
         private void OnValidate()
         {
+            RefreshMediaScopeFilters();
             RefreshMediaTypeFilters();
             RefreshAssets();
         }
@@ -41,29 +45,37 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         private void OnGUI()
         {
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.Popup(GUIContent.none, 0, new[] { "Example Scope" }, GUILayout.ExpandWidth(true), GUILayout.MinWidth(100f));
+            var newMediaScopeIndex = EditorGUILayout.Popup(GUIContent.none, _mediaScopeIndex,
+                new[] { "<All>" }.Concat(_mediaScopes.Select(x => x.Name).ToArray()).ToArray(),
+                GUILayout.ExpandWidth(true), GUILayout.MinWidth(100f));
+            if (newMediaScopeIndex != _mediaScopeIndex)
+            {
+                _mediaScopeIndex = newMediaScopeIndex;
+                RefreshAssets();
+            }
+
             GUILayout.Button(EditorGUIUtility.IconContent("editicon.sml").image, CustomStyles.IconButton);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
-            var newMediaTypeFilterIndex = EditorGUILayout.Popup(GUIContent.none, _mediaTypeFilterIndex,
-                new[] { "<All>" }.Concat(_mediaTypeFilters.Select(x => x.Name).ToArray()).ToArray(),
+            var newMediaTypeFilterIndex = EditorGUILayout.Popup(GUIContent.none, _mediaFilterIndex,
+                new[] { "<All>" }.Concat(_mediaFilters.Select(x => x.Name).ToArray()).ToArray(),
                 GUILayout.ExpandWidth(true), GUILayout.MinWidth(100f));
-            if (newMediaTypeFilterIndex != _mediaTypeFilterIndex)
+            if (newMediaTypeFilterIndex != _mediaFilterIndex)
             {
-                _mediaTypeFilterIndex = newMediaTypeFilterIndex;
-                _mediaTypeSubFilterIndex = 0;
+                _mediaFilterIndex = newMediaTypeFilterIndex;
+                _mediaSubFilterIndex = 0;
                 RefreshAssets();
             }
 
-            if (_mediaTypeFilterIndex > 0 && _mediaTypeFilters[_mediaTypeFilterIndex - 1].Filters.Length > 1)
+            if (_mediaFilterIndex > 0 && _mediaFilters[_mediaFilterIndex - 1].Filters.Length > 1)
             {
-                var newMediaTypeSubFilterIndex = EditorGUILayout.Popup(GUIContent.none, _mediaTypeSubFilterIndex,
-                    new [] {"<All>"}.Concat(_mediaTypeFilters[_mediaTypeFilterIndex - 1].Filters.Select(x => x.Name).ToArray()).ToArray(),
+                var newMediaTypeSubFilterIndex = EditorGUILayout.Popup(GUIContent.none, _mediaSubFilterIndex,
+                    new[] { "<All>" }.Concat(_mediaFilters[_mediaFilterIndex - 1].Filters.Select(x => x.Name).ToArray()).ToArray(),
                     GUILayout.ExpandWidth(true), GUILayout.MinWidth(100f));
-                if (newMediaTypeSubFilterIndex != _mediaTypeSubFilterIndex)
+                if (newMediaTypeSubFilterIndex != _mediaSubFilterIndex)
                 {
-                    _mediaTypeSubFilterIndex = newMediaTypeSubFilterIndex;
+                    _mediaSubFilterIndex = newMediaTypeSubFilterIndex;
                     RefreshAssets();
                 }
             }
@@ -72,7 +84,13 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.TextField(GUIContent.none, "Search Filter", GUILayout.ExpandWidth(true));
+            var newMediaSearchFilter = EditorGUILayout.TextField(GUIContent.none, _mediaSearchFilter, GUILayout.ExpandWidth(true));
+            if (newMediaSearchFilter.GetHashCode() != _mediaSearchFilter.GetHashCode())
+            {
+                _mediaSearchFilter = newMediaSearchFilter;
+                RefreshAssets();
+            }
+
             EditorGUILayout.EndHorizontal();
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -82,41 +100,45 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 
         private void RefreshAssets()
         {
-            EditorUtility.DisplayProgressBar("Refresh Asset Database", "Reload assets...", 0f);
-            try
+            var filterLine = "";
+            if (_mediaFilterIndex > 0)
             {
-                var filterLine = "";
-                if (_mediaTypeFilterIndex > 0)
+                if (_mediaSubFilterIndex > 0)
                 {
-                    if (_mediaTypeSubFilterIndex > 0)
-                    {
-                        filterLine = _mediaTypeFilters[_mediaTypeFilterIndex - 1].Filters[_mediaTypeSubFilterIndex - 1].FilterLine;
-                    }
-                    else
-                    {
-                        filterLine = _mediaTypeFilters[_mediaTypeFilterIndex - 1].FilterLine;
-                    }
+                    filterLine = _mediaFilters[_mediaFilterIndex - 1].Filters[_mediaSubFilterIndex - 1].FilterLine;
                 }
-                
-                _assets = AssetDatabase.FindAssets(filterLine)
-                    .Select(AssetDatabase.GUIDToAssetPath)
-                    .Where(x => !AssetDatabase.IsValidFolder(x))
-                    .Select(AssetDatabase.LoadMainAssetAtPath)
-                    .Where(x => x != null)
-                    .Select(x => new MediaData(x))
-                    .OrderBy(x => x.Name)
-                    .ToArray();
-                _mediaList = new MediaList(_assets, typeof(MediaData));
+                else
+                {
+                    filterLine = _mediaFilters[_mediaFilterIndex - 1].FilterLine;
+                }
             }
-            finally
+
+            var paths = Array.Empty<string>();
+            if (_mediaScopeIndex > 0)
             {
-                EditorUtility.ClearProgressBar();
+                paths = _mediaScopes[_mediaScopeIndex - 1].Paths;
             }
+
+            _assets = AssetDatabase.FindAssets(filterLine, paths)
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Where(x => !AssetDatabase.IsValidFolder(x))
+                .Select(AssetDatabase.LoadMainAssetAtPath)
+                .Where(x => x != null)
+                .Select(x => new MediaData(x))
+                .Where(x => string.IsNullOrWhiteSpace(_mediaSearchFilter) || x.Name.Contains(_mediaSearchFilter, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(x => x.Name)
+                .ToArray();
+            _mediaList = new MediaList(_assets, typeof(MediaData));
         }
 
         private void RefreshMediaTypeFilters()
         {
-            _mediaTypeFilters = MediaFilter.BuiltinFilters;
+            _mediaFilters = MediaFilter.BuiltinFilters;
+        }
+
+        private void RefreshMediaScopeFilters()
+        {
+            _mediaScopes = MediaScope.BuiltinScopes;
         }
 
         private static class CustomStyles

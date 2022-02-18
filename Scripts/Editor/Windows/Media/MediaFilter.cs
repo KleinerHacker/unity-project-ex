@@ -8,13 +8,14 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
 {
     public sealed class MediaFilter
     {
-        public static MediaFilter[] BuiltinFilters { get; } = new MediaFilter[]
+        public static MediaFilter[] BuiltinFilters { get; } = new []
         {
             new MediaFilter("Scenes", new MediaSubFilter("Scenes", "scene")),
             new MediaFilter("Audio", new MediaSubFilter("Audio Clips", nameof(AudioClip)),
                 new MediaSubFilter("Audio Mixer", nameof(AudioMixer))), 
             new MediaFilter("Images", new MediaSubFilter("Sprites", nameof(Sprite)), new MediaSubFilter("Textures", nameof(Texture))),
-            new MediaFilter("Scripts", new MediaSubFilter("Assemblies", nameof(AssemblyDefinitionAsset)), new MediaSubFilter("References", nameof(AssemblyDefinitionReferenceAsset)))
+            new MediaFilter("Scripts", new MediaSubFilter("Assemblies", nameof(AssemblyDefinitionAsset)), new MediaSubFilter("References", nameof(AssemblyDefinitionReferenceAsset))),
+            new MediaFilter("Prefabs", new MediaSubFilter("Prefabs", "prefab"))
         };
 
         public string Name { get; set; }
@@ -85,7 +86,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
     public enum MediaFilterType
     {
         Type,
-        Extension
+        Prefab
     }
 
     internal static class MediaFilterTypeExtensions
@@ -95,7 +96,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
             return type switch
             {
                 MediaFilterType.Type => "t",
-                MediaFilterType.Extension => "ext",
+                MediaFilterType.Prefab => "prefab",
                 _ => throw new NotImplementedException(type.ToString())
             };
         }
