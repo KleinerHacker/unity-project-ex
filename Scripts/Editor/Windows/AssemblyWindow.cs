@@ -236,7 +236,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 
         private void ReloadAssembly()
         {
-            References = Array.Empty<string>();
+            references = Array.Empty<string>();
             
             using var reader = new JsonTextReader(new StringReader(Encoding.UTF8.GetString(AssemblyDefinition.bytes)));
 
@@ -259,7 +259,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 }
                 else if (reader.Path.StartsWith("references[", StringComparison.OrdinalIgnoreCase))
                 {
-                    references = References.Append((string)reader.Value).ToArray();
+                    references = references.Append((string)reader.Value).ToArray();
                 }
                 else if (reader.Path.StartsWith("defineConstraints[", StringComparison.OrdinalIgnoreCase))
                 {
