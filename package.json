@@ -1,6 +1,6 @@
 {
   "name": "org.pcsoft.project-ex",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "displayName": "Project Extension for Unity",
   "description": "Extension for Unity for better project handling.",
   "unity": "2021.1",
