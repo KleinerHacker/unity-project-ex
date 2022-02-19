@@ -6,8 +6,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
     {
         public static MediaScope[] BuiltinScopes { get; } = new[]
         {
-            new MediaScope("Project", new MediaSubScope("Assets", "Assets")),
-            new MediaScope("Test", new MediaSubScope("Animation Extensions", "Assets/animation"), new MediaSubScope("Extensions", "Assets/extension"))
+            new MediaScope("Project", new MediaSubScope("Assets", "Assets"))
         };
         
         public string Name { get; set; }

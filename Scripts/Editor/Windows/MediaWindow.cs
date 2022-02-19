@@ -72,7 +72,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 }
             }
 
-            GUILayout.Button(EditorGUIUtility.IconContent("editicon.sml").image, CustomStyles.IconButton);
+            //GUILayout.Button(EditorGUIUtility.IconContent("editicon.sml").image, CustomStyles.IconButton);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
@@ -99,7 +99,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 }
             }
 
-            GUILayout.Button(EditorGUIUtility.IconContent("editicon.sml").image, CustomStyles.IconButton);
+            //GUILayout.Button(EditorGUIUtility.IconContent("editicon.sml").image, CustomStyles.IconButton);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
