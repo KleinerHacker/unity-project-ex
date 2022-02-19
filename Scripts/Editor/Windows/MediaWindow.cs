@@ -152,6 +152,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 .OrderBy(x => x.Name)
                 .ToArray();
             _mediaList = new MediaList(_assets, typeof(MediaData));
+
+            var scopeName = _mediaScopeIndex > 0 ? _mediaScopes[_mediaScopeIndex - 1].Name : "<All>";
+            var filterName = _mediaFilterIndex > 0 ? _mediaFilters[_mediaFilterIndex].Name : "<All>";
+            titleContent = new GUIContent("Media - " + scopeName + " / " + filterName);
         }
 
         private void RefreshMediaTypeFilters()
