@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using UnityCommonEx.Runtime.common_ex.Scripts.Runtime.Utils.Extensions;
 using UnityEditor;
 using UnityEngine;
 using UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media;
@@ -17,7 +19,8 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         }
 
         private MediaData[] _assets = Array.Empty<MediaData>();
-        private MediaList _mediaList;
+        private (string name, string path, MediaList list)[] _mediaList = Array.Empty<(string, string, MediaList)>();
+        private readonly IDictionary<string, bool> _folds = new Dictionary<string, bool>();
 
         private MediaFilter[] _mediaFilters = Array.Empty<MediaFilter>();
         private MediaScope[] _mediaScopes = Array.Empty<MediaScope>();
@@ -107,10 +110,35 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 RefreshAssets();
             }
 
+            if (GUILayout.Button(EditorGUIUtility.IconContent("Folder Icon").image, CustomStyles.IconButton))
+            {
+                foreach (var item in _mediaList)
+                {
+                    _folds.AddOrOverwrite(item.path, false);
+                }
+            }
+
+            if (GUILayout.Button(EditorGUIUtility.IconContent("FolderOpened Icon").image, CustomStyles.IconButton))
+            {
+                foreach (var item in _mediaList)
+                {
+                    _folds.AddOrOverwrite(item.path, true);
+                }
+            }
             EditorGUILayout.EndHorizontal();
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
-            _mediaList.DoLayoutList();
+            foreach (var item in _mediaList.Where(x => x.list.list.Count > 0))
+            {
+                var fold = EditorGUILayout.BeginFoldoutHeaderGroup(_folds.GetOrDefault(item.path, true),
+                    new GUIContent(item.name, item.path));
+                if (fold)
+                {
+                    item.list.DoLayoutList();
+                }
+                _folds.AddOrOverwrite(item.path, fold);
+                EditorGUILayout.EndFoldoutHeaderGroup();
+            }
             EditorGUILayout.EndScrollView();
         }
 
@@ -138,7 +166,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 }
                 else
                 {
-                    paths = _mediaScopes[_mediaScopeIndex - 1].Paths;   
+                    paths = _mediaScopes[_mediaScopeIndex - 1].Paths;
                 }
             }
 
@@ -149,9 +177,34 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 .Where(x => x != null)
                 .Select(x => new MediaData(x))
                 .Where(x => string.IsNullOrWhiteSpace(_mediaSearchFilter) || x.Name.Contains(_mediaSearchFilter, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(x => x.Name)
+                .OrderBy(x => x.Path).ThenBy(x => x.Name)
                 .ToArray();
-            _mediaList = new MediaList(_assets, typeof(MediaData));
+
+
+            var mediaList = new List<(string, string, MediaList)>();
+            if (_assets.Length > 0)
+            {
+                var currentList = new List<MediaData>();
+                var currentPath = new FileInfo(_assets[0].Path);
+                foreach (var asset in _assets)
+                {
+                    var path = new FileInfo(asset.Path);
+                    if (!string.Equals(currentPath.Directory.FullName, path.Directory.FullName, StringComparison.Ordinal))
+                    {
+                        mediaList.Add((currentPath.Directory.Name, currentPath.Directory.FullName, new MediaList(currentList, typeof(MediaData))));
+                        currentList = new List<MediaData>();
+
+                        currentPath = path;
+                    }
+
+                    currentList.Add(asset);
+                }
+
+                //Do not forget to add last list after all
+                mediaList.Add((currentPath.Directory.Name, currentPath.Directory.FullName, new MediaList(currentList, typeof(MediaData))));
+            }
+
+            _mediaList = mediaList.ToArray();
 
             var scopeName = _mediaScopeIndex > 0 ? _mediaScopes[_mediaScopeIndex - 1].Name : "<All>";
             var filterName = _mediaFilterIndex > 0 ? _mediaFilters[_mediaFilterIndex].Name : "<All>";

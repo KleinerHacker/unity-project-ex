@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
 {
-    internal sealed class MediaList : ReorderableList 
+    internal sealed class MediaList : ReorderableList
     {
         public MediaList(IList elements, Type elementType) : base(elements, elementType, false, false, false, false)
         {
@@ -16,15 +16,9 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
 
         private void DrawElementCallback(Rect rect, int i, bool isactive, bool isfocused)
         {
-            var asset = (MediaData) list[i];
-            if (asset == null)
-            {
-                GUI.Label(rect, "<null>");
-                return;
-            }
-            
+            var asset = (MediaData)list[i];
             GUI.DrawTexture(new Rect(rect.x, rect.y, 24f, 24f), asset.Icon);
-            GUI.Label(new Rect(rect.x + 30f, rect.y, rect.width - 30f, rect.height), asset.Name);
+            GUI.Label(new Rect(rect.x + 30f, rect.y, rect.width - 30f, rect.height), asset.Name, CustomStyles.Label);
         }
 
         private void OnSelectCallback(ReorderableList reorderableList)
@@ -33,6 +27,11 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
                 return;
 
             Selection.activeObject = ((MediaData)list[index]).Asset;
+        }
+
+        private static class CustomStyles
+        {
+            public static readonly GUIStyle Label = new GUIStyle(EditorStyles.label) { alignment = TextAnchor.MiddleLeft };
         }
     }
 }
