@@ -6,10 +6,12 @@ using System.Text;
 using System.Text.RegularExpressions;
 using UnityCommonEx.Runtime.common_ex.Scripts.Runtime.Utils.Extensions;
 using UnityEditor;
+using UnityEditor.IMGUI.Controls;
 using UnityEditorEx.Editor.editor_ex.Scripts.Editor.Utils;
 using UnityEditorInternal;
 using UnityEngine;
 using UnityProjectEx.Editor.project_ex.Scripts.Editor.Utils.Extensions;
+using UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly;
 
 namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 {
@@ -23,11 +25,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             ((EditorWindow)CreateInstance<AssemblyWindow>()).Show();
         }
 
-        private Texture _assemblyIcon;
-        private Texture _assemblyReferenceIcon;
-
         private AssemblyData[] _projectAssemblies = Array.Empty<AssemblyData>();
-        private AssemblyData[] _allAssemblies = Array.Empty<AssemblyData>();
 
         private Vector2 _scroll = Vector2.zero;
         private IDictionary<string, bool> _folds = new Dictionary<string, bool>();
@@ -39,25 +37,22 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         private string _assembyReferenceNameFilter = "";
         private bool _useGuid = true;
 
+        private AssemblyTree _assemblyTree;
+
         private void OnEnable()
         {
             titleContent = new GUIContent("Assembly", EditorGUIUtility.IconContent("Assembly Icon").image);
             minSize = new Vector2(350f, 100f);
             maxSize = new Vector2(400f, 1000f);
 
-            _assemblyIcon = EditorGUIUtility.IconContent("AssemblyDefinitionAsset Icon").image;
-            _assemblyReferenceIcon = EditorGUIUtility.IconContent("AssemblyDefinitionReferenceAsset Icon").image;
+            _assemblyTree = new AssemblyTree(new TreeViewState());
+            _assemblyTree.Reload();
 
             OnValidate();
         }
 
         private void OnValidate()
         {
-            _allAssemblies = AssetDatabase.FindAssets("t:" + nameof(AssemblyDefinitionAsset))
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .Select(AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>)
-                .Select(x => new AssemblyData(x))
-                .ToArray();
             _projectAssemblies = AssetDatabase.FindAssets("t:" + nameof(AssemblyDefinitionAsset), new[] { "Assets" })
                 .Select(AssetDatabase.GUIDToAssetPath)
                 .Select(AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>)
@@ -102,83 +97,10 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             _useGuid = EditorGUILayout.Toggle("Use GUID for referencing", _useGuid);
 
             EditorGUILayout.Space();
-            _scroll = EditorGUILayout.BeginScrollView(_scroll, GUIStyle.none, GUI.skin.verticalScrollbar);
-            foreach (var projectAssembly in _projectAssemblies
-                         .Where(x => _assemblyProjectFilter.HasFlag(x.Type))
-                         .Where(x => string.IsNullOrWhiteSpace(_assemblyProjectNameFilter) ||
-                                     x.Name.Contains(_assemblyProjectNameFilter, StringComparison.OrdinalIgnoreCase)))
-            {
-                var fold = _folds.GetOrDefault(projectAssembly.Name, false);
-                fold = EditorGUILayout.BeginFoldoutHeaderGroup(fold,
-                    new GUIContent(projectAssembly.Name.Limit(NameLimit, "...") + " (" + projectAssembly.Type + ")", _assemblyIcon, projectAssembly.Name),
-                    menuAction: _ =>
-                    {
-                        var genericMenu = new GenericMenu();
-                        genericMenu.AddItem(new GUIContent("Select in tree"), false, () => Selection.activeObject = projectAssembly.AssemblyDefinition);
-                        genericMenu.ShowAsContext();
-                    });
-                _folds.AddOrOverwrite(projectAssembly.Name, fold);
+            
+            var controlRect = EditorGUILayout.GetControlRect(false, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+            _assemblyTree.OnGUI(controlRect);
 
-                if (fold)
-                {
-                    EditorGUI.indentLevel = 1;
-                    foreach (var allAssembly in _allAssemblies
-                                 .Where(x => _assemblyReferenceFilter.HasFlag(x.Type))
-                                 .Where(x => _assemblyReferencePlaceFilter.HasFlag(x.Place))
-                                 .Where(x => string.IsNullOrWhiteSpace(_assembyReferenceNameFilter) ||
-                                             x.Name.Contains(_assembyReferenceNameFilter, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        EditorGUILayout.BeginHorizontal();
-                        var selected = projectAssembly.References.Any(x =>
-                        {
-                            if (x.StartsWith("GUID:", StringComparison.OrdinalIgnoreCase))
-                                return x.Substring(5) == AssetDatabaseEx.GetGUID(allAssembly.AssemblyDefinition).ToString();
-
-                            return x == allAssembly.Name;
-                        });
-                        var newSelected =
-                            EditorGUILayout.ToggleLeft(new GUIContent(allAssembly.Name.Limit(NameLimit, "..."), _assemblyReferenceIcon, allAssembly.Name),
-                                selected, GUILayout.Width(175f));
-                        if (selected != newSelected)
-                        {
-                            var guidElement = "GUID:" + AssetDatabaseEx.GetGUID(allAssembly.AssemblyDefinition);
-                            if (newSelected)
-                            {
-                                projectAssembly.References = projectAssembly.References
-                                    .Append(_useGuid ? guidElement : allAssembly.Name)
-                                    .ToArray();
-                            }
-                            else
-                            {
-                                projectAssembly.References = projectAssembly.References
-                                    .Remove(allAssembly.Name)
-                                    .Remove(guidElement)
-                                    .ToArray();
-                            }
-
-                            hasUnsavedChanges = _projectAssemblies.Any(x => x.IsDirty);
-                        }
-
-                        EditorGUILayout.LabelField("(" + allAssembly.Type + " | " + allAssembly.Place + ")", EditorStyles.miniLabel, GUILayout.Width(125f));
-                        EditorGUILayout.Space(0f, true);
-                        if (GUILayout.Button(EditorGUIUtility.IconContent("_Menu").image, EditorStyles.iconButton))
-                        {
-                            var genericMenu = new GenericMenu();
-                            genericMenu.AddItem(new GUIContent("Select in tree"), false, () => Selection.activeObject = allAssembly.AssemblyDefinition);
-                            genericMenu.ShowAsContext();
-                        }
-
-                        EditorGUILayout.EndHorizontal();
-                    }
-
-                    EditorGUI.indentLevel = 0;
-                }
-
-                EditorGUILayout.EndFoldoutHeaderGroup();
-            }
-
-            EditorGUILayout.Space();
-            EditorGUILayout.EndScrollView();
             EditorGUI.BeginDisabledGroup(_projectAssemblies.All(x => !x.IsDirty));
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Apply Changes"))
@@ -263,24 +185,16 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
             name = nameMatch.Groups[1].Value;
 
             var referencesMatch = ReferencesRegex.Match(json);
-            references = referencesMatch.Success
-                ? referencesMatch.Groups[1].Value.SplitJson()
-                : Array.Empty<string>();
+            references = referencesMatch.Success ? referencesMatch.Groups[1].Value.SplitJson() : Array.Empty<string>();
 
             var includesMatch = IncludesRegex.Match(json);
-            var includes = includesMatch.Success
-                ? includesMatch.Groups[1].Value.SplitJson()
-                : Array.Empty<string>();
+            var includes = includesMatch.Success ? includesMatch.Groups[1].Value.SplitJson() : Array.Empty<string>();
 
             var excludesMatch = ExcludesRegex.Match(json);
-            var excludes = excludesMatch.Success
-                ? excludesMatch.Groups[1].Value.SplitJson()
-                : Array.Empty<string>();
+            var excludes = excludesMatch.Success ? excludesMatch.Groups[1].Value.SplitJson() : Array.Empty<string>();
 
             var definesMatch = DefinesRegex.Match(json);
-            var defineConstraints = definesMatch.Success
-                ? definesMatch.Groups[1].Value.SplitJson()
-                : Array.Empty<string>();
+            var defineConstraints = definesMatch.Success ? definesMatch.Groups[1].Value.SplitJson() : Array.Empty<string>();
 
             if (defineConstraints.Contains("UNITY_INCLUDE_TESTS"))
             {
@@ -295,9 +209,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
                 Type = AssemblyType.Runtime;
             }
 
-            Place = AssetDatabase.GetAssetPath(AssemblyDefinition).StartsWith("Assets", StringComparison.OrdinalIgnoreCase)
-                ? AssemblyPlace.Project
-                : AssemblyPlace.Package;
+            Place = AssetDatabase.GetAssetPath(AssemblyDefinition).StartsWith("Assets", StringComparison.OrdinalIgnoreCase) ? AssemblyPlace.Project : AssemblyPlace.Package;
         }
 
         public void Store()
