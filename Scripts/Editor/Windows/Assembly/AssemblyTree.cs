@@ -1,6 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
-using Codice.Client.BaseCommands;
+using Unity.CodeEditor;
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using UnityEditorEx.Editor.editor_ex.Scripts.Editor.Utils;
@@ -11,12 +12,16 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
 {
     public sealed class AssemblyTree : TreeView
     {
-        private Texture _assemblyIcon;
-        private Texture _assemblyReferenceIcon;
-        private Texture _scriptIcon;
-        private Texture _editorIcon;
-        private Texture _gameIcon;
-        private Texture _testIcon;
+        private readonly Texture _assemblyIcon;
+        private readonly Texture _assemblyReferenceIcon;
+        private readonly Texture _scriptIcon;
+        private readonly Texture _csIcon;
+        private readonly Texture _dependencyIcon;
+        private readonly Texture _editorIcon;
+        private readonly Texture _gameIcon;
+        private readonly Texture _testIcon;
+        private readonly Texture _folderOpen;
+        private readonly Texture _folderClose;
 
         private AssemblyData[] _projectAssemblies = Array.Empty<AssemblyData>();
         private AssemblyData[] _allAssemblies = Array.Empty<AssemblyData>();
@@ -25,10 +30,14 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
         {
             _assemblyIcon = EditorGUIUtility.IconContent("AssemblyDefinitionAsset Icon").image;
             _assemblyReferenceIcon = EditorGUIUtility.IconContent("AssemblyDefinitionReferenceAsset Icon").image;
-            _scriptIcon = EditorGUIUtility.IconContent("cs Script Icon").image;
+            _scriptIcon = EditorGUIUtility.IconContent("Occlusion").image;
+            _dependencyIcon = EditorGUIUtility.IconContent("EditCollider").image;
+            _csIcon = EditorGUIUtility.IconContent("cs Script Icon").image;
             _editorIcon = EditorGUIUtility.IconContent("BuildSettings.Editor.Small").image;
             _gameIcon = EditorGUIUtility.IconContent("UnityEditor.GameView").image;
             _testIcon = EditorGUIUtility.IconContent("TestPassed").image;
+            _folderOpen = EditorGUIUtility.IconContent("FolderOpened Icon").image;
+            _folderClose = EditorGUIUtility.IconContent("Folder Icon").image;
 
             rowHeight = 20f;
         }
@@ -40,12 +49,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
 
             if (args.item is AssemblyTreeItem assemblyTreeItem)
             {
-                var clicked = GUI.Button(new Rect(indentedRect.x + 2f, indentedRect.y + 2f, 16f, 16f),
-                    new GUIContent(_assemblyIcon, "Click to expand / collapse"), EditorStyles.iconButton);
-                if (clicked)
-                {
-                    SetExpanded(args.item.id, !IsExpanded(args.item.id));
-                }
+                GUI.DrawTexture(new Rect(indentedRect.x + 18f, indentedRect.y + 2f, 16f, 16f), _assemblyIcon);
 
                 var secondIcon = assemblyTreeItem.Data.Type switch
                 {
@@ -58,19 +62,21 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
 
                 if (secondIcon != null)
                 {
-                    GUI.DrawTexture(new Rect(indentedRect.x + 20f, indentedRect.y + 2f, 16f, 16f), secondIcon);
+                    GUI.DrawTexture(new Rect(indentedRect.x + 36f, indentedRect.y + 2f, 16f, 16f), secondIcon);
                 }
 
-                GUI.Label(new Rect(indentedRect.x + 38f, indentedRect.y, indentedRect.width - 38f, indentedRect.height), assemblyTreeItem.Data.Name);
+                GUI.Label(new Rect(indentedRect.x + 54f, indentedRect.y, indentedRect.width - 54f, indentedRect.height),
+                    assemblyTreeItem.Data.Name, EditorStyles.boldLabel);
             }
             else
             {
-                if (GUI.Button(new Rect(indentedRect.x + 2f, indentedRect.y + 2f, 16f, 16f), args.item.icon, EditorStyles.iconButton))
-                {
-                    SetExpanded(args.item.id, !IsExpanded(args.item.id));
-                }
+                var closeIcon = args.item.icon;
+                var openIcon = args.item is ExpandTreeItem expandTreeItem ? expandTreeItem.ExpandedIcon : closeIcon;
 
-                GUI.Label(new Rect(indentedRect.x + 20f, indentedRect.y, indentedRect.width - 20f, indentedRect.height), args.label);
+                GUI.DrawTexture(new Rect(indentedRect.x + 18f, indentedRect.y + 2f, 16f, 16f), IsExpanded(args.item.id) ? openIcon : closeIcon);
+
+                GUI.Label(new Rect(indentedRect.x + 36f, indentedRect.y, indentedRect.width - 36f, indentedRect.height),
+                    args.label, args.item is HeaderTreeItem ? EditorStyles.boldLabel : EditorStyles.label);
             }
         }
 
@@ -81,47 +87,47 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
             var root = new TreeViewItem();
             BuildTree(root);
 
-            return root; 
+            return root;
         }
 
         private void BuildTree(TreeViewItem root)
         {
-            var counter = 0;
+            var counter = new Counter();
             foreach (var projectAssembly in _projectAssemblies)
             {
                 counter++;
-                
-                var assemblyItem = new AssemblyTreeItem(projectAssembly) {id = counter};
-                BuildAssemblyItem(assemblyItem, ref counter);
+
+                var assemblyItem = new AssemblyTreeItem(projectAssembly) { id = counter };
+                BuildAssemblyItem(assemblyItem);
 
                 root.AddChild(assemblyItem);
             }
 
-            void BuildAssemblyItem(AssemblyTreeItem assemblyItem, ref int counter)
+            void BuildAssemblyItem(AssemblyTreeItem assemblyItem)
             {
                 counter++;
-                var referenceItem = new TreeViewItem(counter)
+                var referenceItem = new HeaderTreeItem(counter)
                 {
                     displayName = "References (" + assemblyItem.Data.References.Length + ")",
-                    icon = (Texture2D)_assemblyReferenceIcon,
+                    icon = (Texture2D)_dependencyIcon,
                     depth = 1
                 };
-                BuildReferencesItem(referenceItem, assemblyItem.Data, ref counter);
-                
+                BuildReferencesItem(referenceItem, assemblyItem.Data);
+
                 assemblyItem.AddChild(referenceItem);
 
                 counter++;
-                var sourcesItem = new TreeViewItem(counter)
+                var sourcesItem = new HeaderTreeItem(counter)
                 {
                     displayName = "Sources",
                     icon = (Texture2D)_scriptIcon,
                     depth = 1
                 };
-                BuildSourcesItem(sourcesItem, assemblyItem.Data, ref counter);
-                
+                BuildSourcesItem(sourcesItem, assemblyItem.Data);
+
                 assemblyItem.AddChild(sourcesItem);
 
-                void BuildReferencesItem(TreeViewItem item, AssemblyData assemblyData, ref int counter)
+                void BuildReferencesItem(TreeViewItem item, AssemblyData assemblyData)
                 {
                     foreach (var reference in assemblyData.References)
                     {
@@ -134,15 +140,39 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
                         item.AddChild(new TreeViewItem(counter)
                         {
                             displayName = refData.Name,
-                            icon = (Texture2D)_assemblyIcon,
+                            icon = (Texture2D)_assemblyReferenceIcon,
                             depth = 2
                         });
                     }
                 }
 
-                void BuildSourcesItem(TreeViewItem item, AssemblyData assemblyData, ref int counter)
+                void BuildSourcesItem(TreeViewItem item, AssemblyData assemblyData)
                 {
-                    
+                    var assemblyFile = AssetDatabase.GetAssetPath(assemblyData.AssemblyDefinition);
+                    var assemblyPath = Path.GetDirectoryName(assemblyFile);
+                    var assetPaths = AssetDatabase.FindAssets("t:" + nameof(MonoScript), new[] { assemblyPath })
+                        .Select(AssetDatabase.GUIDToAssetPath)
+                        .GroupBy(Path.GetDirectoryName, Path.GetFileName);
+
+                    foreach (var asset in assetPaths)
+                    {
+                        counter++;
+                        item.AddChild(new ExpandTreeItem(counter)
+                        {
+                            displayName = asset.Key,
+                            icon = (Texture2D)_folderClose,
+                            ExpandedIcon = (Texture2D)_folderOpen,
+                            depth = 2,
+                            children = asset
+                                .Select(x => new TreeViewItem(++counter)
+                                {
+                                    displayName = x,
+                                    icon = (Texture2D)_csIcon,
+                                    depth = 3
+                                })
+                                .ToList()
+                        });
+                    }
                 }
             }
         }
@@ -161,6 +191,61 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
                 .ToArray();
         }
 
+        protected override bool CanRename(TreeViewItem item)
+        {
+            return item is AssemblyTreeItem;
+        }
+
+        protected override void RenameEnded(RenameEndedArgs args)
+        {
+            var treeViewItem = FindItem(args.itemID, rootItem);
+            if (!(treeViewItem is AssemblyTreeItem assemblyTreeItem))
+                return;
+
+            if (string.IsNullOrWhiteSpace(args.newName) || args.newName.Any(x => x is '\\' or '/' || x == ':' || x == '?'))
+            {
+                args.acceptedRename = false;
+                return;
+            }
+
+            assemblyTreeItem.Data.AssemblyDefinition.name = args.newName;
+            args.acceptedRename = true;
+        }
+
+        protected override Rect GetRenameRect(Rect rowRect, int row, TreeViewItem item)
+        {
+            return new Rect(rowRect.x + 38f, rowRect.y, rowRect.width - 38f, rowRect.height);
+        }
+
+        protected override void SingleClickedItem(int id)
+        {
+            var treeViewItem = FindItem(id, rootItem);
+            if (!(treeViewItem is AssemblyTreeItem assemblyTreeItem))
+                return;
+
+            Selection.activeObject = assemblyTreeItem.Data.AssemblyDefinition;
+        }
+
+        protected override void DoubleClickedItem(int id)
+        {
+            /*var treeViewItem = FindItem(id, rootItem);
+            if (!(treeViewItem is AssemblyTreeItem assemblyTreeItem))
+                return;*/
+
+            CodeEditor.CurrentEditor.OpenProject();
+        }
+
+        protected override void ContextClickedItem(int id)
+        {
+            var treeViewItem = FindItem(id, rootItem);
+            if (treeViewItem is AssemblyTreeItem assemblyTreeItem)
+            {
+                var genericMenu = new GenericMenu();
+                genericMenu.AddItem(new GUIContent("Open Project in Editor"), false, () => CodeEditor.CurrentEditor.OpenProject());
+                genericMenu.ShowAsContext();
+            }
+        }
+
         private sealed class AssemblyTreeItem : TreeViewItem
         {
             public AssemblyData Data { get; }
@@ -168,6 +253,47 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
             public AssemblyTreeItem(AssemblyData data)
             {
                 Data = data;
+            }
+        }
+
+        private sealed class HeaderTreeItem : TreeViewItem
+        {
+            public HeaderTreeItem(int id) : base(id)
+            {
+            }
+        }
+
+        private sealed class ExpandTreeItem : TreeViewItem
+        {
+            public Texture2D ExpandedIcon { get; set; }
+
+            public ExpandTreeItem(int id) : base(id)
+            {
+            }
+        }
+
+        private sealed class Counter
+        {
+            public int Counting { get; }
+
+            public Counter()
+            {
+            }
+
+            private Counter(int counting)
+            {
+                Counting = counting;
+            }
+
+            public static implicit operator int(Counter c)
+            {
+                return c.Counting;
+            }
+
+            public static Counter operator ++(Counter c)
+            {
+                var newValue = c.Counting + 1;
+                return new Counter(newValue);
             }
         }
     }

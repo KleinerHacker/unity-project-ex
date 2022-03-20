@@ -1,15 +1,15 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using UnityCommonEx.Runtime.common_ex.Scripts.Runtime.Utils.Extensions;
+using Codice.Client.BaseCommands;
 using UnityEditor;
+using UnityEditor.EditorTools;
 using UnityEditor.IMGUI.Controls;
-using UnityEditorEx.Editor.editor_ex.Scripts.Editor.Utils;
 using UnityEditorInternal;
 using UnityEngine;
+using UnityEngine.UIElements;
 using UnityProjectEx.Editor.project_ex.Scripts.Editor.Utils.Extensions;
 using UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly;
 
@@ -17,30 +17,26 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 {
     public sealed class AssemblyWindow : EditorWindow
     {
-        private const int NameLimit = 20;
-
         [MenuItem("Window/General/Assembly", priority = 9)]
-        public static void Show()
+        public new static void Show()
         {
             ((EditorWindow)CreateInstance<AssemblyWindow>()).Show();
         }
 
         private AssemblyData[] _projectAssemblies = Array.Empty<AssemblyData>();
 
-        private Vector2 _scroll = Vector2.zero;
-        private IDictionary<string, bool> _folds = new Dictionary<string, bool>();
-        private bool _filterFold;
-        private AssemblyType _assemblyProjectFilter = AssemblyType.Runtime | AssemblyType.Editor | AssemblyType.Test;
-        private string _assemblyProjectNameFilter = "";
-        private AssemblyType _assemblyReferenceFilter = AssemblyType.Runtime | AssemblyType.Editor | AssemblyType.Test;
-        private AssemblyPlace _assemblyReferencePlaceFilter = AssemblyPlace.Package | AssemblyPlace.Project;
-        private string _assembyReferenceNameFilter = "";
         private bool _useGuid = true;
 
         private AssemblyTree _assemblyTree;
 
+        private Texture _expandAllIcon;
+        private Texture _collapseAllIcon;
+
         private void OnEnable()
         {
+            _expandAllIcon = EditorGUIUtility.IconContent("FolderOpened Icon").image;
+            _collapseAllIcon = EditorGUIUtility.IconContent("Folder Icon").image;
+            
             titleContent = new GUIContent("Assembly", EditorGUIUtility.IconContent("Assembly Icon").image);
             minSize = new Vector2(350f, 100f);
             maxSize = new Vector2(400f, 1000f);
@@ -64,35 +60,17 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
 
         private void OnGUI()
         {
-            _filterFold = EditorGUILayout.BeginFoldoutHeaderGroup(_filterFold, "Filters");
-            if (_filterFold)
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button(new GUIContent(_collapseAllIcon, "Collapse all"), EditorStyles.iconButton))
             {
-                EditorGUI.indentLevel = 1;
-                EditorGUILayout.BeginHorizontal();
-                {
-                    EditorGUILayout.LabelField("Project:", GUILayout.Width(85f));
-                    _assemblyProjectFilter = (AssemblyType)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyProjectFilter, GUILayout.Width(100f));
-                    _assemblyProjectNameFilter = EditorGUILayout.TextField(GUIContent.none, _assemblyProjectNameFilter, GUILayout.ExpandWidth(true),
-                        GUILayout.MinWidth(100f));
-                }
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.BeginHorizontal();
-                {
-                    EditorGUILayout.LabelField("References:", GUILayout.Width(85f));
-                    EditorGUILayout.BeginVertical(GUILayout.Width(100f));
-                    _assemblyReferenceFilter = (AssemblyType)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyReferenceFilter, GUILayout.Width(100f));
-                    _assemblyReferencePlaceFilter =
-                        (AssemblyPlace)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyReferencePlaceFilter, GUILayout.Width(100f));
-                    EditorGUILayout.EndVertical();
-                    _assembyReferenceNameFilter = EditorGUILayout.TextField(GUIContent.none, _assembyReferenceNameFilter, GUILayout.ExpandWidth(true),
-                        GUILayout.MinWidth(100f));
-                }
-                EditorGUILayout.EndHorizontal();
-                EditorGUI.indentLevel = 0;
+                _assemblyTree.CollapseAll();
             }
 
-            EditorGUILayout.EndFoldoutHeaderGroup();
+            if (GUILayout.Button(new GUIContent(_expandAllIcon, "Expand all"), EditorStyles.iconButton))
+            {
+                _assemblyTree.ExpandAll();
+            }
+            EditorGUILayout.EndHorizontal();
 
             _useGuid = EditorGUILayout.Toggle("Use GUID for referencing", _useGuid);
 
