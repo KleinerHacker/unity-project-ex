@@ -25,6 +25,34 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
 
         private AssemblyData[] _projectAssemblies = Array.Empty<AssemblyData>();
         private AssemblyData[] _allAssemblies = Array.Empty<AssemblyData>();
+        private string _searchText = "";
+        private AssemblyType _searchType = AssemblyType.Runtime | AssemblyType.Editor | AssemblyType.Test;
+
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (_searchText == value)
+                    return;
+                
+                _searchText = value;
+                Reload();
+            }
+        }
+
+        public AssemblyType SearchType
+        {
+            get => _searchType;
+            set
+            {
+                if (_searchType == value)
+                    return;
+                
+                _searchType = value;
+                Reload();
+            }
+        }
 
         public AssemblyTree(TreeViewState state) : base(state)
         {
@@ -64,14 +92,14 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
                 {
                     GUI.DrawTexture(new Rect(indentedRect.x + 36f, indentedRect.y + 2f, 16f, 16f), secondIcon);
                 }
-
+                
                 GUI.Label(new Rect(indentedRect.x + 54f, indentedRect.y, indentedRect.width - 54f, indentedRect.height),
                     assemblyTreeItem.Data.Name, EditorStyles.boldLabel);
             }
             else
             {
                 var closeIcon = args.item.icon;
-                var openIcon = args.item is ExpandTreeItem expandTreeItem ? expandTreeItem.ExpandedIcon : closeIcon;
+                var openIcon = args.item is DoubleIconTreeItem doubleIconTreeItem ? doubleIconTreeItem.ExpandedIcon : closeIcon;
 
                 GUI.DrawTexture(new Rect(indentedRect.x + 18f, indentedRect.y + 2f, 16f, 16f), IsExpanded(args.item.id) ? openIcon : closeIcon);
 
@@ -97,7 +125,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
             {
                 counter++;
 
-                var assemblyItem = new AssemblyTreeItem(projectAssembly) { id = counter };
+                var assemblyItem = new AssemblyTreeItem(counter, projectAssembly);
                 BuildAssemblyItem(assemblyItem);
 
                 root.AddChild(assemblyItem);
@@ -106,7 +134,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
             void BuildAssemblyItem(AssemblyTreeItem assemblyItem)
             {
                 counter++;
-                var referenceItem = new HeaderTreeItem(counter)
+                var referenceItem = new ReferencesTreeItem(counter)
                 {
                     displayName = "References (" + assemblyItem.Data.References.Length + ")",
                     icon = (Texture2D)_dependencyIcon,
@@ -117,7 +145,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
                 assemblyItem.AddChild(referenceItem);
 
                 counter++;
-                var sourcesItem = new HeaderTreeItem(counter)
+                var sourcesItem = new SourcesTreeItem(counter)
                 {
                     displayName = "Sources",
                     icon = (Texture2D)_scriptIcon,
@@ -157,14 +185,14 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
                     foreach (var asset in assetPaths)
                     {
                         counter++;
-                        item.AddChild(new ExpandTreeItem(counter)
+                        item.AddChild(new FolderTreeItem(counter)
                         {
                             displayName = asset.Key,
                             icon = (Texture2D)_folderClose,
                             ExpandedIcon = (Texture2D)_folderOpen,
                             depth = 2,
                             children = asset
-                                .Select(x => new TreeViewItem(++counter)
+                                .Select(x => (TreeViewItem)new SourceFileTreeItem(++counter, AssetDatabase.LoadAssetAtPath<MonoScript>(asset.Key + "/" + x))
                                 {
                                     displayName = x,
                                     icon = (Texture2D)_csIcon,
@@ -188,51 +216,77 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
                 .Select(AssetDatabase.GUIDToAssetPath)
                 .Select(AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>)
                 .Select(x => new AssemblyData(x))
+                .Where(x => string.IsNullOrWhiteSpace(SearchText) || x.Name.Contains(SearchText))
+                .Where(x => SearchType.HasFlag(x.Type))
                 .ToArray();
         }
 
         protected override bool CanRename(TreeViewItem item)
         {
-            return item is AssemblyTreeItem;
+            return item is AssemblyTreeItem || item is SourceFileTreeItem;
         }
 
         protected override void RenameEnded(RenameEndedArgs args)
         {
-            var treeViewItem = FindItem(args.itemID, rootItem);
-            if (!(treeViewItem is AssemblyTreeItem assemblyTreeItem))
-                return;
-
             if (string.IsNullOrWhiteSpace(args.newName) || args.newName.Any(x => x is '\\' or '/' || x == ':' || x == '?'))
             {
                 args.acceptedRename = false;
                 return;
             }
 
-            assemblyTreeItem.Data.AssemblyDefinition.name = args.newName;
-            args.acceptedRename = true;
+            var treeViewItem = FindItem(args.itemID, rootItem);
+            if (treeViewItem is AssemblyTreeItem assemblyTreeItem)
+            {
+                assemblyTreeItem.Data.AssemblyDefinition.name = args.newName;
+                args.acceptedRename = true;
+            }
+            else if (treeViewItem is SourceFileTreeItem sourceFileTreeItem)
+            {
+                sourceFileTreeItem.MonoScript.name = args.newName;
+                args.acceptedRename = true;
+            }
         }
 
         protected override Rect GetRenameRect(Rect rowRect, int row, TreeViewItem item)
         {
-            return new Rect(rowRect.x + 38f, rowRect.y, rowRect.width - 38f, rowRect.height);
+            EditorGUI.indentLevel = item.depth;
+            var indentedRect = EditorGUI.IndentedRect(rowRect);
+
+            if (item is AssemblyTreeItem)
+                return new Rect(indentedRect.x + 56f, indentedRect.y, indentedRect.width - 56f, indentedRect.height);
+            
+            return new Rect(indentedRect.x + 38f, indentedRect.y, indentedRect.width - 38f, indentedRect.height);
         }
 
         protected override void SingleClickedItem(int id)
         {
             var treeViewItem = FindItem(id, rootItem);
-            if (!(treeViewItem is AssemblyTreeItem assemblyTreeItem))
-                return;
-
-            Selection.activeObject = assemblyTreeItem.Data.AssemblyDefinition;
+            if (treeViewItem is AssemblyTreeItem assemblyTreeItem)
+            {
+                Selection.activeObject = assemblyTreeItem.Data.AssemblyDefinition;
+            }
+            else if (treeViewItem is SourceFileTreeItem sourceFileTreeItem)
+            {
+                Selection.activeObject = sourceFileTreeItem.MonoScript;
+            }
         }
 
         protected override void DoubleClickedItem(int id)
         {
-            /*var treeViewItem = FindItem(id, rootItem);
-            if (!(treeViewItem is AssemblyTreeItem assemblyTreeItem))
-                return;*/
+            var treeViewItem = FindItem(id, rootItem);
+            
+            var path = "";
+            if (treeViewItem is AssemblyTreeItem assemblyTreeItem)
+            {
+                path = AssetDatabase.GetAssetPath(assemblyTreeItem.Data.AssemblyDefinition);
+            }
+            else if (treeViewItem is SourceFileTreeItem sourceFileTreeItem)
+            {
+                path = AssetDatabase.GetAssetPath(sourceFileTreeItem.MonoScript.GetInstanceID());
+                Debug.LogError(path);
+            }
 
-            CodeEditor.CurrentEditor.OpenProject();
+            CodeEditor.CurrentEditor.OpenProject(path);
         }
 
         protected override void ContextClickedItem(int id)
@@ -241,7 +295,22 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
             if (treeViewItem is AssemblyTreeItem assemblyTreeItem)
             {
                 var genericMenu = new GenericMenu();
-                genericMenu.AddItem(new GUIContent("Open Project in Editor"), false, () => CodeEditor.CurrentEditor.OpenProject());
+                genericMenu.AddItem(new GUIContent("Open Project in Editor"), false, 
+                    () => CodeEditor.CurrentEditor.OpenProject(AssetDatabase.GetAssetPath(assemblyTreeItem.Data.AssemblyDefinition)));
+                genericMenu.ShowAsContext();
+            }
+            else if (treeViewItem is SourceFileTreeItem sourceFileTreeItem)
+            {
+                var genericMenu = new GenericMenu();
+                genericMenu.AddItem(new GUIContent("Open Project in Editor"), false, 
+                    () => CodeEditor.CurrentEditor.OpenProject(AssetDatabase.GetAssetPath(sourceFileTreeItem.MonoScript)));
+                genericMenu.ShowAsContext();
+            }
+            else if (treeViewItem is ReferencesTreeItem)
+            {
+                var genericMenu = new GenericMenu();
+                genericMenu.AddItem(new GUIContent("Manage References..."), false, 
+                    () => {});
                 genericMenu.ShowAsContext();
             }
         }
@@ -250,25 +319,57 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly
         {
             public AssemblyData Data { get; }
 
-            public AssemblyTreeItem(AssemblyData data)
+            public AssemblyTreeItem(int id, AssemblyData data) : base(id)
             {
                 Data = data;
+                displayName = data.Name;
             }
         }
 
-        private sealed class HeaderTreeItem : TreeViewItem
+        private abstract class HeaderTreeItem : TreeViewItem
         {
-            public HeaderTreeItem(int id) : base(id)
+            protected HeaderTreeItem(int id) : base(id)
             {
             }
         }
 
-        private sealed class ExpandTreeItem : TreeViewItem
+        private sealed class ReferencesTreeItem : HeaderTreeItem
+        {
+            public ReferencesTreeItem(int id) : base(id)
+            {
+            }
+        }
+
+        private sealed class SourcesTreeItem : HeaderTreeItem
+        {
+            public SourcesTreeItem(int id) : base(id)
+            {
+            }
+        }
+
+        private abstract class DoubleIconTreeItem : TreeViewItem
         {
             public Texture2D ExpandedIcon { get; set; }
 
-            public ExpandTreeItem(int id) : base(id)
+            protected DoubleIconTreeItem(int id) : base(id)
             {
+            }
+        }
+
+        private sealed class FolderTreeItem : DoubleIconTreeItem
+        {
+            public FolderTreeItem(int id) : base(id)
+            {
+            }
+        }
+
+        private sealed class SourceFileTreeItem : TreeViewItem
+        {
+            public MonoScript MonoScript { get; }
+
+            public SourceFileTreeItem(int id, MonoScript monoScript) : base(id)
+            {
+                MonoScript = monoScript;
             }
         }
 

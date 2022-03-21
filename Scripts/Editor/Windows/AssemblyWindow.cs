@@ -3,13 +3,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using Codice.Client.BaseCommands;
 using UnityEditor;
-using UnityEditor.EditorTools;
 using UnityEditor.IMGUI.Controls;
 using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.UIElements;
 using UnityProjectEx.Editor.project_ex.Scripts.Editor.Utils.Extensions;
 using UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Assembly;
 
@@ -36,7 +33,7 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         {
             _expandAllIcon = EditorGUIUtility.IconContent("FolderOpened Icon").image;
             _collapseAllIcon = EditorGUIUtility.IconContent("Folder Icon").image;
-            
+
             titleContent = new GUIContent("Assembly", EditorGUIUtility.IconContent("Assembly Icon").image);
             minSize = new Vector2(350f, 100f);
             maxSize = new Vector2(400f, 1000f);
@@ -61,21 +58,24 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows
         private void OnGUI()
         {
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button(new GUIContent(_collapseAllIcon, "Collapse all"), EditorStyles.iconButton))
+            if (GUILayout.Button(new GUIContent(_collapseAllIcon, "Collapse all"), new GUIStyle(EditorStyles.toolbarButton) { fixedWidth = 25f }))
             {
                 _assemblyTree.CollapseAll();
             }
 
-            if (GUILayout.Button(new GUIContent(_expandAllIcon, "Expand all"), EditorStyles.iconButton))
+            if (GUILayout.Button(new GUIContent(_expandAllIcon, "Expand all"), new GUIStyle(EditorStyles.toolbarButton) { fixedWidth = 25f }))
             {
                 _assemblyTree.ExpandAll();
             }
+
+            _assemblyTree.SearchText = EditorGUILayout.TextField(GUIContent.none, _assemblyTree.SearchText, EditorStyles.toolbarTextField, GUILayout.MinWidth(100f), GUILayout.MaxWidth(300f));
+            _assemblyTree.SearchType = (AssemblyType)EditorGUILayout.EnumFlagsField(GUIContent.none, _assemblyTree.SearchType, EditorStyles.toolbarPopup, GUILayout.Width(100f));
             EditorGUILayout.EndHorizontal();
 
             _useGuid = EditorGUILayout.Toggle("Use GUID for referencing", _useGuid);
 
             EditorGUILayout.Space();
-            
+
             var controlRect = EditorGUILayout.GetControlRect(false, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
             _assemblyTree.OnGUI(controlRect);
 
