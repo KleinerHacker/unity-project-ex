@@ -5,7 +5,9 @@ using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.Rendering;
+#if URP
 using UnityEngine.Rendering.Universal;
+#endif
 using UnityEngine.UIElements;
 using AnimatorController = UnityEditor.Animations.AnimatorController;
 
@@ -25,9 +27,9 @@ namespace UnityProjectEx.Editor.project_ex.Scripts.Editor.Windows.Media
             new MediaFilter("Animations", new MediaSubFilter("Animations", nameof(AnimationClip)), new MediaSubFilter("Animators", nameof(AnimatorController))),
             new MediaFilter("Physics", new MediaSubFilter("Physics 3D", nameof(PhysicMaterial)), new MediaSubFilter("Physics 2D", nameof(PhysicsMaterial2D))),
             new MediaFilter("Graphics", new MediaSubFilter("Shader", nameof(Shader)), new MediaSubFilter("Render Pipelines", nameof(RenderPipelineAsset)),
-                #if URP
+#if URP
                 new MediaSubFilter("Render Data", nameof(ScriptableRendererData)),
-                #endif
+#endif
                 new MediaSubFilter("Post Processing", nameof(VolumeProfile))),
             new MediaFilter("Scripts", new MediaSubFilter("Assemblies", nameof(AssemblyDefinitionAsset)),
                 new MediaSubFilter("References", nameof(AssemblyDefinitionReferenceAsset)), new MediaSubFilter("Source Code", nameof(MonoScript))),
