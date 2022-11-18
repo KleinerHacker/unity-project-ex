@@ -1,3 +1,8 @@
+# Deprecated
+
+New Project:
+https://github.com/KleinerHacker/unity-ide-ex
+
 # unity-project-ex
 Extension for Unity for better project handling
 
